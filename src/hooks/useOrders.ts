@@ -1,19 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
+import { getOrders } from '@api/orders';
 import type { OrderDto } from '@models/OrderDto';
-import { mockOrders } from '@mockData/orders';
-// import { fetchOrders } from '@api/orders';
 
-async function getOrders(): Promise<OrderDto[]> {
-	// Swap to API when ready:
-	// return await fetchOrders();
-	// For now return mock data to keep UI functional.
-	return Promise.resolve(mockOrders);
-}
-
-export function useOrders() {
+export function useOrders(params?: { page?: number; limit?: number; status?: string; startDate?: string; endDate?: string; customerId?: string; sortBy?: string; sortOrder?: 'asc' | 'desc' }) {
 	return useQuery({
-		queryKey: ['orders'],
-		queryFn: getOrders
+		queryKey: ['orders', params],
+		queryFn: () => getOrders(params),
+		select: (data) => data.data // Extract the data array from the paginated response
 	});
 }
 

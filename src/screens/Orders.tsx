@@ -5,6 +5,8 @@ import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import dayjs from 'dayjs';
 import { useOrders } from '@hooks/useOrders';
+import { useQueryClient } from '@tanstack/react-query';
+import { acceptOrder as apiAcceptOrder, rejectOrder as apiRejectOrder } from '@api/orders';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import HighlightOffOutlinedIcon from '@mui/icons-material/HighlightOffOutlined';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
@@ -12,6 +14,7 @@ import { useNavigate } from 'react-router-dom';
 
 export function Orders() {
 	const { data: orders, isLoading } = useOrders();
+	const queryClient = useQueryClient();
 	const [sortKey, setSortKey] = React.useState<string>('createdAt');
 	const [sortDirection, setSortDirection] = React.useState<'asc' | 'desc'>('asc');
 	const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
@@ -60,15 +63,27 @@ export function Orders() {
 		setActiveId(null);
 	};
 
-	const acceptOrder = () => {
+	const acceptOrder = async () => {
 		if (!activeId) return;
-		setLocalOrders((prev) => prev.map((o) => (o.id === activeId ? { ...o, status: 'DELIVERED' } : o)));
-		closeMenu();
+		try {
+			await apiAcceptOrder(activeId);
+			// Invalidate and refetch orders
+			queryClient.invalidateQueries({ queryKey: ['orders'] });
+			closeMenu();
+		} catch (error) {
+			console.error('Failed to accept order:', error);
+		}
 	};
-	const rejectOrder = () => {
+	const rejectOrder = async () => {
 		if (!activeId) return;
-		setLocalOrders((prev) => prev.map((o) => (o.id === activeId ? { ...o, status: 'CANCELLED' } : o)));
-		closeMenu();
+		try {
+			await apiRejectOrder(activeId);
+			// Invalidate and refetch orders
+			queryClient.invalidateQueries({ queryKey: ['orders'] });
+			closeMenu();
+		} catch (error) {
+			console.error('Failed to reject order:', error);
+		}
 	};
 	const viewOrder = () => {
 		if (!activeId) return;
@@ -93,7 +108,7 @@ export function Orders() {
 
 			<Paper elevation={0} sx={{ p: 2, borderRadius: 2 }}>
 				{isLoading && <Typography>Loading...</Typography>}
-				{orders && (
+				{!isLoading && orders && sorted.length > 0 && (
 					<DataTable
 						columns={[
 							{ key: 'id', header: 'Order ID', sortable: true },
@@ -142,6 +157,11 @@ export function Orders() {
 						sortDirection={sortDirection}
 						onSortChange={handleSortChange}
 					/>
+				)}
+				{!isLoading && (!orders || sorted.length === 0) && (
+					<Box display="flex" justifyContent="center" alignItems="center" minHeight={200}>
+						<Typography color="text.secondary">No Orders Found</Typography>
+					</Box>
 				)}
 
 				<Menu

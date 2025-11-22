@@ -1,45 +1,59 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, signOut, onAuthStateChanged, updateProfile } from 'firebase/auth';
-import { auth, googleProvider } from '@config/firebase';
+import { login as apiLogin, register as apiRegister, loginWithGoogle as apiLoginWithGoogle, logout as apiLogout, getCurrentUser } from '@api/auth';
+import type { UserDto } from '@models/UserDto';
 
 type AuthContextType = {
-	user: User | null;
+	user: UserDto | null;
 	loading: boolean;
 	login: (email: string, password: string) => Promise<void>;
 	register: (email: string, password: string, name: string, storeName: string) => Promise<void>;
-	loginWithGoogle: () => Promise<void>;
+	loginWithGoogle: (idToken: string) => Promise<void>;
 	logout: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-	const [user, setUser] = useState<User | null>(null);
+	const [user, setUser] = useState<UserDto | null>(null);
 	const [loading, setLoading] = useState(true);
 
 	useEffect(() => {
-		const unsubscribe = onAuthStateChanged(auth, (user) => {
-			setUser(user);
+		// Check if user is already authenticated
+		const token = localStorage.getItem('auth_token');
+		if (token) {
+			getCurrentUser()
+				.then((userData) => {
+					setUser(userData);
+					setLoading(false);
+				})
+				.catch(() => {
+					// Token is invalid, clear it
+					localStorage.removeItem('auth_token');
+					setLoading(false);
+				});
+		} else {
 			setLoading(false);
-		});
-		return unsubscribe;
+		}
 	}, []);
 
 	const login = async (email: string, password: string) => {
-		await signInWithEmailAndPassword(auth, email, password);
+		const response = await apiLogin(email, password);
+		setUser(response.user);
 	};
 
 	const register = async (email: string, password: string, name: string, storeName: string) => {
-		const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-		await updateProfile(userCredential.user, { displayName: name });
+		const response = await apiRegister(email, password, name, storeName);
+		setUser(response.user);
 	};
 
-	const loginWithGoogle = async () => {
-		await signInWithPopup(auth, googleProvider);
+	const loginWithGoogle = async (idToken: string) => {
+		const response = await apiLoginWithGoogle(idToken);
+		setUser(response.user);
 	};
 
 	const logout = async () => {
-		await signOut(auth);
+		await apiLogout();
+		setUser(null);
 	};
 
 	return <AuthContext.Provider value={{ user, loading, login, register, loginWithGoogle, logout }}>{children}</AuthContext.Provider>;

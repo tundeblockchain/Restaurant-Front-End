@@ -1,15 +1,21 @@
 import React from 'react';
 import { DataTable, Button, ProductListRow, ConfirmDialog } from '@ui/index';
 import { useProducts } from '@hooks/useProducts';
-import { Box, Paper, Typography, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, TextField, FormControl, InputLabel, Select, MenuItem, Alert, Chip, Stack, FormControlLabel, Switch, Drawer, List, ListItem, ListItemText, Divider } from '@mui/material';
+import { createProduct, uploadProductImages, deleteProduct } from '@api/products';
+import { useQueryClient } from '@tanstack/react-query';
+import { Box, Paper, Typography, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, TextField, FormControl, InputLabel, Select, MenuItem, Alert, Chip, Stack, FormControlLabel, Switch, Drawer, List, ListItem, ListItemText, Divider, CircularProgress } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 
 export function Products() {
 	const { data, isLoading, error } = useProducts();
+	const queryClient = useQueryClient();
 	const [rows, setRows] = React.useState<any[]>([]);
 	const [toDelete, setToDelete] = React.useState<string | null>(null);
+	const [isDeleting, setIsDeleting] = React.useState(false);
+	const [deleteError, setDeleteError] = React.useState<string | null>(null);
 	const [open, setOpen] = React.useState(false);
 	const [formError, setFormError] = React.useState<string | null>(null);
+	const [isSaving, setIsSaving] = React.useState(false);
 	const [form, setForm] = React.useState({
 		name: '',
 		category: '',
@@ -28,10 +34,22 @@ export function Products() {
 		if (data) setRows(data);
 	}, [data]);
 
-	const confirmDelete = () => {
+	const confirmDelete = async () => {
 		if (!toDelete) return;
-		setRows((prev) => prev.filter((p) => p.id !== toDelete));
-		setToDelete(null);
+		
+		setIsDeleting(true);
+		setDeleteError(null);
+		
+		try {
+			await deleteProduct(toDelete);
+			// Invalidate and refetch products
+			queryClient.invalidateQueries({ queryKey: ['products'] });
+			setToDelete(null);
+		} catch (err: any) {
+			setDeleteError(err.message || 'Failed to delete product. Please try again.');
+		} finally {
+			setIsDeleting(false);
+		}
 	};
 
 	const onFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -47,7 +65,7 @@ export function Products() {
 		setForm((f) => ({ ...f, images: f.images.filter((_, i) => i !== idx), mainIndex: f.mainIndex === idx ? 0 : f.mainIndex > idx ? f.mainIndex - 1 : f.mainIndex }));
 	};
 
-	const saveProduct = () => {
+	const saveProduct = async () => {
 		setFormError(null);
 		if (!form.name.trim()) return setFormError('Name is required');
 		if (!form.category.trim()) return setFormError('Category is required');
@@ -55,28 +73,52 @@ export function Products() {
 		if (form.images.length === 0) return setFormError('At least one image is required');
 		if (form.images.length > 10) return setFormError('Maximum of 10 images allowed');
 
-		const mainImage = form.images[form.mainIndex]?.url;
-		const allergens = form.allergensCsv
-			.split(',')
-			.map((a) => a.trim())
-			.filter(Boolean);
-		const newRow = {
-			id: `prd_${Math.random().toString(36).slice(2, 8)}`,
-			name: form.name.trim(),
-			category: form.category.trim(),
-			description: form.description.trim() || undefined,
-			price: Number(form.price),
-			status: form.status,
-			containsAllergens: form.containsAllergens,
-			allergens,
-			imageUrl: mainImage,
-			quantity: 1,
-			rating: 0,
-			reviewsCount: 0
-		};
-		setRows((prev) => [newRow, ...prev]);
-		setOpen(false);
-		setForm({ name: '', category: '', description: '', price: 0, status: 'AVAILABLE', containsAllergens: false, allergensCsv: '', images: [], mainIndex: 0 });
+		setIsSaving(true);
+		try {
+			const allergens = form.allergensCsv
+				.split(',')
+				.map((a) => a.trim())
+				.filter(Boolean);
+
+			// Create the product first
+			const productData = {
+				name: form.name.trim(),
+				category: form.category.trim(),
+				description: form.description.trim() || undefined,
+				price: Number(form.price),
+				status: form.status as 'AVAILABLE' | 'OUT_OF_STOCK' | 'INACTIVE',
+				containsAllergens: form.containsAllergens,
+				allergens: allergens.length > 0 ? allergens : undefined
+			};
+
+			const newProduct = await createProduct(productData);
+
+			// Upload images if there are any
+			const imageFiles = form.images.map((img) => img.file).filter((f): f is File => f !== undefined);
+			if (imageFiles.length > 0) {
+				console.log('uploading images', imageFiles);
+				console.log('newProduct id', newProduct.id);
+				await uploadProductImages(newProduct.id, imageFiles);
+			}
+
+			// Invalidate and refetch products
+			queryClient.invalidateQueries({ queryKey: ['products'] });
+
+			// Clean up object URLs
+			form.images.forEach((img) => {
+				if (img.url.startsWith('blob:')) {
+					URL.revokeObjectURL(img.url);
+				}
+			});
+
+			// Close dialog and reset form
+			setOpen(false);
+			setForm({ name: '', category: '', description: '', price: 0, status: 'AVAILABLE', containsAllergens: false, allergensCsv: '', images: [], mainIndex: 0 });
+		} catch (err: any) {
+			setFormError(err.message || 'Failed to create product. Please try again.');
+		} finally {
+			setIsSaving(false);
+		}
 	};
 
 	const openDetails = (row: any) => {
@@ -87,12 +129,12 @@ export function Products() {
 	return (
 		<Box display="grid" gap={2}>
 			<Box display="flex" justifyContent="space-between" alignItems="center">
-				<Typography variant="h5" fontWeight={800}>Items</Typography>
+				<Typography variant="h5" fontWeight={800}>Products</Typography>
 				<Button onClick={() => setOpen(true)}>Add Product</Button>
 			</Box>
 			{isLoading && <Typography>Loading...</Typography>}
 			{error && <Typography>Failed to load products.</Typography>}
-			{rows && (
+			{!isLoading && !error && rows && rows.length > 0 && (
 				<Paper elevation={0} sx={{ borderRadius: 3, overflow: 'hidden' }}>
 					<DataTable
 						columns={[
@@ -100,7 +142,7 @@ export function Products() {
 								key: 'item',
 								header: 'Items',
 								render: (p: any) => (
-									<ProductListRow imageUrl={p.imageUrl} category={p.category} name={p.name} rating={p.rating} reviewsCount={p.reviewsCount} />
+									<ProductListRow imageUrl={p.images[0]} category={p.category} name={p.name} rating={p.rating} reviewsCount={p.reviewsCount} />
 								)
 							},
 							{ key: 'quantity', header: 'Qty', render: (p: any) => <Typography fontWeight={700}>{(p.quantity ?? 1)}x</Typography>, align: 'left', width: 80 },
@@ -120,12 +162,33 @@ export function Products() {
 					/>
 				</Paper>
 			)}
+			{!isLoading && !error && rows && rows.length === 0 && (
+				<Paper elevation={0} sx={{ p: 2, borderRadius: 2 }}>
+					<Box display="flex" justifyContent="center" alignItems="center" minHeight={200}>
+						<Typography color="text.secondary">No Products Found</Typography>
+					</Box>
+				</Paper>
+			)}
 			<ConfirmDialog
 				open={Boolean(toDelete)}
 				title="Delete item"
-				message="Are you sure you want to delete this product? This action cannot be undone."
-				onCancel={() => setToDelete(null)}
+				message={
+					<Box>
+						<Typography>Are you sure you want to delete this product? This action cannot be undone.</Typography>
+						{deleteError && (
+							<Alert severity="error" sx={{ mt: 1 }}>
+								{deleteError}
+							</Alert>
+						)}
+					</Box>
+				}
+				onCancel={() => {
+					setToDelete(null);
+					setDeleteError(null);
+				}}
 				onConfirm={confirmDelete}
+				confirmButtonDisabled={isDeleting}
+				confirmButtonLoading={isDeleting}
 			/>
 
 			{/* Details Drawer */}
@@ -160,7 +223,17 @@ export function Products() {
 			</Drawer>
 
 			{/* Add Product Dialog */}
-			<Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="md">
+			<Dialog open={open} onClose={() => {
+				// Clean up object URLs
+				form.images.forEach((img) => {
+					if (img.url.startsWith('blob:')) {
+						URL.revokeObjectURL(img.url);
+					}
+				});
+				setOpen(false);
+				setForm({ name: '', category: '', description: '', price: 0, status: 'AVAILABLE', containsAllergens: false, allergensCsv: '', images: [], mainIndex: 0 });
+				setFormError(null);
+			}} fullWidth maxWidth="md">
 				<DialogTitle>Add Product</DialogTitle>
 				<DialogContent sx={{ display: 'grid', gap: 2, pt: 2 }}>
 					{formError && <Alert severity="error">{formError}</Alert>}
@@ -201,8 +274,11 @@ export function Products() {
 					</Box>
 				</DialogContent>
 				<DialogActions>
-					<Button onClick={() => setOpen(false)}>Cancel</Button>
-					<Button variant="contained" onClick={saveProduct}>Save</Button>
+					<Button onClick={() => setOpen(false)} disabled={isSaving}>Cancel</Button>
+					<Button variant="contained" onClick={saveProduct} disabled={isSaving}>
+						{isSaving && <CircularProgress size={16} sx={{ mr: 1 }} />}
+						Save
+					</Button>
 				</DialogActions>
 			</Dialog>
 		</Box>

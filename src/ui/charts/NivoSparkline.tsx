@@ -18,6 +18,7 @@ export function NivoSparkline({ data, height = 80, color = '#ff2c7a' }: Props) {
 				colors={[color]}
 				lineWidth={2}
 				enablePoints={false}
+				enableArea={false}
 				enableGridX={false}
 				enableGridY={false}
 				axisBottom={null}

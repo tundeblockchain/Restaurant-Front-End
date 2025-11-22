@@ -138,9 +138,9 @@ export function AppLayout() {
 						<Box display="flex" alignItems="center" gap={1} sx={{ ml: 2, cursor: 'pointer' }} onClick={handleClick}>
 							<Box textAlign="right">
 								<Typography variant="body2" color="text.secondary">{greeting}</Typography>
-								<Typography fontWeight={700}>{user?.displayName || 'User'}</Typography>
+								<Typography fontWeight={700}>{user?.name || 'User'}</Typography>
 							</Box>
-							<Avatar src={user?.photoURL ?? undefined} sx={{ width: 40, height: 40 }} />
+							<Avatar src={user?.avatarUrl ?? undefined} sx={{ width: 40, height: 40 }} />
 						</Box>
 						<Menu anchorEl={anchorEl} open={open} onClose={handleClose} PaperProps={{ elevation: 2, sx: { borderRadius: 2, mt: 1 } }}>
 							<MenuItem onClick={() => { handleClose(); navigate('/profile'); }}>

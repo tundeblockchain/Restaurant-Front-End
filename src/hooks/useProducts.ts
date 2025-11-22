@@ -1,16 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
-// import { getProducts } from '@api/products';
-import { mockProducts } from '@mockData/products';
+import { getProducts } from '@api/products';
 import type { ProductDto } from '@models/ProductDto';
 
-async function getProductsMock(): Promise<ProductDto[]> {
-	return Promise.resolve(mockProducts);
-}
-
-export function useProducts() {
+export function useProducts(params?: { page?: number; limit?: number; category?: string; status?: string; search?: string }) {
 	return useQuery({
-		queryKey: ['products'],
-		queryFn: getProductsMock
+		queryKey: ['products', params],
+		queryFn: () => getProducts(params),
+		select: (data) => data.data // Extract the data array from the paginated response
 	});
 }
 

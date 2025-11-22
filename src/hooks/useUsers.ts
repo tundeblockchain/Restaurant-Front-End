@@ -1,15 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
+import { getUsers } from '@api/users';
 import type { UserDto } from '@models/UserDto';
-import { mockUsers } from '@mockData/users';
 
-async function getUsersMock(): Promise<UserDto[]> {
-	return Promise.resolve(mockUsers);
-}
-
-export function useUsers() {
+export function useUsers(params?: { page?: number; limit?: number; role?: string; search?: string; status?: 'ACTIVE' | 'INACTIVE' }) {
 	return useQuery({
-		queryKey: ['users'],
-		queryFn: getUsersMock
+		queryKey: ['users', params],
+		queryFn: () => getUsers(params),
+		select: (data) => data.data // Extract the data array from the paginated response
 	});
 }
 

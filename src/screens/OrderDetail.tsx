@@ -1,12 +1,12 @@
 import React from 'react';
-import { Box, Paper, Typography, IconButton, Menu, MenuItem, Chip, ListItemIcon } from '@mui/material';
+import { Box, Paper, Typography, IconButton, Menu, MenuItem, Chip, ListItemIcon, CircularProgress } from '@mui/material';
 import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew';
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import ScheduleIcon from '@mui/icons-material/Schedule';
 import DoneAllIcon from '@mui/icons-material/DoneAll';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useOrders } from '@hooks/useOrders';
+import { useOrder } from '@hooks/useOrder';
 import dayjs from 'dayjs';
 import { StepTimelineCard, DataTable, ProductListRow, CustomerProfileCard } from '@ui/index';
 
@@ -14,8 +14,7 @@ export function OrderDetail() {
 	const navigate = useNavigate();
 	const { orderId } = useParams();
 	const decodedId = orderId ? decodeURIComponent(orderId) : undefined;
-	const { data } = useOrders();
-	const order = data?.find((o) => o.id === decodedId);
+	const { data: order, isLoading } = useOrder(decodedId);
 
 	const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
 	const open = Boolean(anchorEl);
@@ -36,6 +35,22 @@ export function OrderDetail() {
 	const taxRate = 0.08; // 8% tax placeholder
 	const tax = subtotal * taxRate;
 	const total = subtotal + tax;
+
+	if (isLoading) {
+		return (
+			<Box display="flex" justifyContent="center" alignItems="center" minHeight={400}>
+				<CircularProgress />
+			</Box>
+		);
+	}
+
+	if (!order) {
+		return (
+			<Box display="grid" gap={3}>
+				<Typography variant="h5" fontWeight={800}>Order not found</Typography>
+			</Box>
+		);
+	}
 
 	return (
 		<Box display="grid" gap={3}>

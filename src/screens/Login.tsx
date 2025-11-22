@@ -3,6 +3,8 @@ import { Box, Paper, Typography, TextField, Button, Divider, Alert } from '@mui/
 import { useAuth } from '@contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import GoogleIcon from '@mui/icons-material/Google';
+import { signInWithPopup } from 'firebase/auth';
+import { auth, googleProvider } from '@config/firebase';
 
 export function Login() {
 	const { login, loginWithGoogle } = useAuth();
@@ -30,7 +32,9 @@ export function Login() {
 		setError(null);
 		setLoading(true);
 		try {
-			await loginWithGoogle();
+			const result = await signInWithPopup(auth, googleProvider);
+			const idToken = await result.user.getIdToken();
+			await loginWithGoogle(idToken);
 			navigate('/');
 		} catch (err: any) {
 			setError(err.message || 'Failed to login with Google');

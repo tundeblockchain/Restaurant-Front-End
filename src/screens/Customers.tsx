@@ -25,7 +25,7 @@ export function Customers() {
 			</Box>
 			<Paper elevation={0} sx={{ p: 2, borderRadius: 2 }}>
 				{isLoading && <Typography>Loading...</Typography>}
-				{!isLoading && (
+				{!isLoading && filtered.length > 0 && (
 					<DataTable
 						columns={[
 							{ key: 'name', header: 'Customer', render: (c: any) => (
@@ -45,6 +45,11 @@ export function Customers() {
 						rows={filtered}
 						getRowId={(r: any) => r.id}
 					/>
+				)}
+				{!isLoading && filtered.length === 0 && (
+					<Box display="flex" justifyContent="center" alignItems="center" minHeight={200}>
+						<Typography color="text.secondary">No Customers Found</Typography>
+					</Box>
 				)}
 			</Paper>
 		</Box>
