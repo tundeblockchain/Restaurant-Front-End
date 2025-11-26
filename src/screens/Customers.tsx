@@ -5,15 +5,10 @@ import { useCustomers } from '@hooks/useCustomers';
 import dayjs from 'dayjs';
 
 export function Customers() {
-	const { data, isLoading } = useCustomers();
 	const [query, setQuery] = React.useState('');
-
-	const filtered = React.useMemo(() => {
-		if (!data) return [] as any[];
-		const q = query.trim().toLowerCase();
-		if (!q) return data;
-		return data.filter((c: any) => [c.name, c.email, c.city, c.country].some((v) => (v ?? '').toLowerCase().includes(q)));
-	}, [data, query]);
+	const { data, isLoading, error } = useCustomers({
+		search: query.trim() || undefined
+	});
 
 	return (
 		<Box display="grid" gap={2}>
@@ -25,7 +20,8 @@ export function Customers() {
 			</Box>
 			<Paper elevation={0} sx={{ p: 2, borderRadius: 2 }}>
 				{isLoading && <Typography>Loading...</Typography>}
-				{!isLoading && filtered.length > 0 && (
+				{error && <Typography color="error">Failed to load customers.</Typography>}
+				{!isLoading && !error && data && data.length > 0 && (
 					<DataTable
 						columns={[
 							{ key: 'name', header: 'Customer', render: (c: any) => (
@@ -37,16 +33,16 @@ export function Customers() {
 									</Box>
 								</Box>
 							)},
-							{ key: 'phone', header: 'Phone' },
-							{ key: 'location', header: 'Location', render: (c: any) => `${c.city ?? ''}${c.city && c.country ? ', ' : ''}${c.country ?? ''}` },
-							{ key: 'joinedAt', header: 'Joined', render: (c: any) => dayjs(c.joinedAt).format('DD MMM YYYY') },
-							{ key: 'totalOrders', header: 'Orders' }
+							{ key: 'phone', header: 'Phone', render: (c: any) => c.phone || '-' },
+							{ key: 'location', header: 'Location', render: (c: any) => `${c.city ?? ''}${c.city && c.country ? ', ' : ''}${c.country ?? ''}` || '-' },
+							{ key: 'joinedAt', header: 'Joined', render: (c: any) => c.joinedAt ? dayjs(c.joinedAt).format('DD MMM YYYY') : '-' },
+							{ key: 'totalOrders', header: 'Orders', render: (c: any) => c.totalOrders ?? 0 }
 						]}
-						rows={filtered}
+						rows={data}
 						getRowId={(r: any) => r.id}
 					/>
 				)}
-				{!isLoading && filtered.length === 0 && (
+				{!isLoading && !error && (!data || data.length === 0) && (
 					<Box display="flex" justifyContent="center" alignItems="center" minHeight={200}>
 						<Typography color="text.secondary">No Customers Found</Typography>
 					</Box>

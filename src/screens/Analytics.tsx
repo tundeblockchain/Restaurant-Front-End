@@ -7,7 +7,11 @@ import type { PieDatum } from '@nivo/pie';
 import dayjs from 'dayjs';
 
 export function Analytics() {
-	const { data: revenueData, isLoading: revenueLoading } = useRevenueAnalytics();
+	// Calculate 30-day period: from 30 days ago to today
+	const endDate = dayjs().format('YYYY-MM-DD');
+	const startDate = dayjs().subtract(30, 'day').format('YYYY-MM-DD');
+	
+	const { data: revenueData, isLoading: revenueLoading } = useRevenueAnalytics(startDate, endDate, 'day');
 	const { data: customerData, isLoading: customerLoading } = useCustomerAnalytics(undefined, undefined, 'month');
 	const { data: orderDistributionData, isLoading: orderDistributionLoading } = useOrderDistributionAnalytics();
 
@@ -19,7 +23,7 @@ export function Analytics() {
 				id: 'Revenue',
 				color: '#ff2c7a',
 				data: revenueData.map((point) => ({
-					x: dayjs(point.date).format('MMM'),
+					x: dayjs(point.date).format('MMM DD'),
 					y: point.revenue
 				}))
 			}

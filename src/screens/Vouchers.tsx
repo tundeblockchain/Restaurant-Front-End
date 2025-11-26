@@ -1,19 +1,23 @@
 import React from 'react';
-import { Box, Paper, Typography, Button, Chip, Dialog, DialogTitle, DialogContent, DialogActions, TextField, FormControl, InputLabel, Select, MenuItem, Switch, FormControlLabel, Alert } from '@mui/material';
+import { Box, Paper, Typography, Button, Chip, Dialog, DialogTitle, DialogContent, DialogActions, TextField, FormControl, InputLabel, Select, MenuItem, Switch, FormControlLabel, Alert, CircularProgress } from '@mui/material';
 import { DataTable, SearchField } from '@ui/index';
 import { useVouchers } from '@hooks/useVouchers';
+import { createVoucher } from '@api/vouchers';
+import { useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 
 export function Vouchers() {
 	const { data, isLoading } = useVouchers();
+	const queryClient = useQueryClient();
 	const [query, setQuery] = React.useState('');
 	const [rows, setRows] = React.useState<any[]>([]);
 	const [open, setOpen] = React.useState(false);
 	const [formError, setFormError] = React.useState<string | null>(null);
+	const [isSaving, setIsSaving] = React.useState(false);
 	const [form, setForm] = React.useState({
 		code: '',
 		title: '',
-		type: 'PERCENT',
+		type: 'PERCENT' as 'PERCENT' | 'AMOUNT',
 		value: 10,
 		startDate: dayjs().format('YYYY-MM-DD'),
 		endDate: dayjs().add(30, 'day').format('YYYY-MM-DD'),
@@ -31,26 +35,38 @@ export function Vouchers() {
 		return rows.filter((v: any) => [v.code, v.title].some((v2) => (v2 ?? '').toLowerCase().includes(q)));
 	}, [rows, query]);
 
-	const saveVoucher = () => {
+	const saveVoucher = async () => {
 		setFormError(null);
 		if (!form.code.trim()) return setFormError('Code is required');
 		if (!form.title.trim()) return setFormError('Title is required');
 		if (!(Number(form.value) > 0)) return setFormError('Value must be greater than 0');
 		if (dayjs(form.endDate).isBefore(dayjs(form.startDate))) return setFormError('End date must be after start date');
-		const newVoucher = {
-			id: `vch_${Math.random().toString(36).slice(2, 8)}`,
-			code: form.code.trim().toUpperCase(),
-			title: form.title.trim(),
-			type: form.type,
-			value: Number(form.value),
-			startDate: dayjs(form.startDate).toISOString(),
-			endDate: dayjs(form.endDate).toISOString(),
-			active: form.active,
-			usageCount: 0
-		};
-		setRows((prev) => [newVoucher, ...prev]);
-		setOpen(false);
-		setForm({ code: '', title: '', type: 'PERCENT', value: 10, startDate: dayjs().format('YYYY-MM-DD'), endDate: dayjs().add(30, 'day').format('YYYY-MM-DD'), active: true });
+
+		setIsSaving(true);
+		try {
+			const voucherData = {
+				code: form.code.trim().toUpperCase(),
+				title: form.title.trim(),
+				type: form.type,
+				value: Number(form.value),
+				startDate: dayjs(form.startDate).toISOString(),
+				endDate: dayjs(form.endDate).toISOString(),
+				active: form.active
+			};
+
+			await createVoucher(voucherData);
+
+			// Invalidate and refetch vouchers
+			queryClient.invalidateQueries({ queryKey: ['vouchers'] });
+
+			// Close dialog and reset form
+			setOpen(false);
+			setForm({ code: '', title: '', type: 'PERCENT', value: 10, startDate: dayjs().format('YYYY-MM-DD'), endDate: dayjs().add(30, 'day').format('YYYY-MM-DD'), active: true });
+		} catch (err: any) {
+			setFormError(err.message || 'Failed to create voucher. Please try again.');
+		} finally {
+			setIsSaving(false);
+		}
 	};
 
 	return (
@@ -66,7 +82,7 @@ export function Vouchers() {
 			</Box>
 			<Paper elevation={0} sx={{ p: 2, borderRadius: 2 }}>
 				{isLoading && <Typography>Loading...</Typography>}
-				{!isLoading && (
+				{!isLoading && filtered.length > 0 && (
 					<DataTable
 						columns={[
 							{ key: 'code', header: 'Code' },
@@ -74,17 +90,26 @@ export function Vouchers() {
 							{ key: 'type', header: 'Type', render: (v: any) => <Chip label={v.type} size="small" /> },
 							{ key: 'value', header: 'Value', render: (v: any) => (v.type === 'PERCENT' ? `${v.value}%` : `$${v.value.toFixed(2)}`) },
 							{ key: 'date', header: 'Date', render: (v: any) => `${dayjs(v.startDate).format('DD MMM YYYY')} - ${dayjs(v.endDate).format('DD MMM YYYY')}` },
-							{ key: 'active', header: 'Active', render: (v: any) => <Chip label={v.active ? 'Active' : 'Inactive'} color={v.active ? 'success' : 'default'} size="small" /> },
-							{ key: 'usageCount', header: 'Usage' }
+							{ key: 'active', header: 'Active', render: (v: any) => <Chip label={v.active ? 'Active' : 'Inactive'} color={v.active ? 'success' : 'default'} size="small" /> }
 						]}
 						rows={filtered}
 						getRowId={(r: any) => r.id}
 					/>
 				)}
+				{!isLoading && filtered.length === 0 && (
+					<Box display="flex" justifyContent="center" alignItems="center" minHeight={200}>
+						<Typography color="text.secondary">No Vouchers Found</Typography>
+					</Box>
+				)}
 			</Paper>
 
 			{/* Add Voucher Dialog */}
-			<Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="sm">
+			<Dialog open={open} onClose={() => {
+				if (!isSaving) {
+					setOpen(false);
+					setFormError(null);
+				}
+			}} fullWidth maxWidth="sm">
 				<DialogTitle>Add Voucher</DialogTitle>
 				<DialogContent sx={{ display: 'grid', gap: 2, pt: 2 }}>
 					{formError && <Alert severity="error">{formError}</Alert>}
@@ -92,7 +117,7 @@ export function Vouchers() {
 					<TextField label="Title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} fullWidth />
 					<FormControl fullWidth>
 						<InputLabel>Type</InputLabel>
-						<Select label="Type" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as string })}>
+						<Select label="Type" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as 'PERCENT' | 'AMOUNT' })}>
 							<MenuItem value="PERCENT">PERCENT</MenuItem>
 							<MenuItem value="AMOUNT">AMOUNT</MenuItem>
 						</Select>
@@ -105,8 +130,11 @@ export function Vouchers() {
 					<FormControlLabel control={<Switch checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} />} label="Active" />
 				</DialogContent>
 				<DialogActions>
-					<Button onClick={() => setOpen(false)}>Cancel</Button>
-					<Button variant="contained" onClick={saveVoucher}>Save</Button>
+					<Button onClick={() => setOpen(false)} disabled={isSaving}>Cancel</Button>
+					<Button variant="contained" onClick={saveVoucher} disabled={isSaving}>
+						{isSaving && <CircularProgress size={16} sx={{ mr: 1 }} />}
+						Save
+					</Button>
 				</DialogActions>
 			</Dialog>
 		</Box>

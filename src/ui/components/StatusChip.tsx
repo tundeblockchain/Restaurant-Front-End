@@ -2,7 +2,7 @@ import React from 'react';
 import { Chip, ChipProps } from '@mui/material';
 import type { OrderStatus } from '@models/OrderDto';
 
-type Props = Omit<ChipProps, 'color' | 'label'> & { status: OrderStatus };
+type Props = Omit<ChipProps, 'color' | 'label'> & { status?: OrderStatus };
 
 const map: Record<OrderStatus, { label: string; color: string; bg: string }> = {
 	PENDING: { label: 'PENDING', color: '#b88700', bg: 'rgba(255,193,7,0.25)' },
@@ -13,6 +13,10 @@ const map: Record<OrderStatus, { label: string; color: string; bg: string }> = {
 
 export function StatusChip({ status, ...rest }: Props) {
 	const s = map[status];
+	if (!s) {
+		// Fallback for unknown status values
+		return <Chip label={status || 'UNKNOWN'} size="small" sx={{ fontWeight: 700, borderRadius: 2 }} {...rest} />;
+	}
 	return <Chip label={s.label} size="small" sx={{ color: s.color, backgroundColor: s.bg, fontWeight: 700, borderRadius: 2 }} {...rest} />;
 }
 

@@ -1,8 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
-import { getOrders } from '@api/orders';
-import type { OrderDto } from '@models/OrderDto';
+import { getOrders, type GetOrdersParams } from '@api/orders';
 
-export function useOrders(params?: { page?: number; limit?: number; status?: string; startDate?: string; endDate?: string; customerId?: string; sortBy?: string; sortOrder?: 'asc' | 'desc' }) {
+export function useOrders(params?: GetOrdersParams) {
 	return useQuery({
 		queryKey: ['orders', params],
 		queryFn: () => getOrders(params),

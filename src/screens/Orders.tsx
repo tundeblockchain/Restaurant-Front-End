@@ -123,7 +123,6 @@ export function Orders() {
 									</Box>
 								)
 							},
-							{ key: 'customerName', header: 'Customer Name', sortable: true, render: (r: any) => <Typography fontWeight={600}>{r.customerName}</Typography> },
 							{
 								key: 'locationLine1',
 								header: 'Location',
@@ -137,7 +136,7 @@ export function Orders() {
 									</Box>
 								)
 							},
-							{ key: 'amount', header: 'Amount', sortable: true, render: (r: any) => `$${r.amount.toFixed(2)}` },
+							{ key: 'totalAmount', header: 'Amount', sortable: true, render: (r: any) => `$${(r.totalAmount ?? 0).toFixed(2)}` },
 							{ key: 'status', header: 'Status Order', sortable: true, render: (r: any) => <StatusChip status={r.status} /> },
 							{
 								key: 'edit',
